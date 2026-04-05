@@ -13,10 +13,12 @@ provider "aws" {
 }
 
 resource "aws_dynamodb_table" "events" {
-  name         = var.table_name
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "event_id"
-  range_key    = "timestamp"
+  name           = var.table_name
+  billing_mode   = "PROVISIONED"
+  read_capacity  = 1
+  write_capacity = 1
+  hash_key       = "event_id"
+  range_key      = "timestamp"
 
   attribute {
     name = "event_id"

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-TERRAFORM_VERSION="1.9.8"
+TERRAFORM_VERSION="1.14.8"
 WORKDIR="/workspaces/jamaica-melissa-event-relay"
 
 echo "==> Detecting architecture..."

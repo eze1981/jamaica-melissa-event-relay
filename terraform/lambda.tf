@@ -55,7 +55,8 @@ resource "aws_lambda_function" "event_relay" {
 
   environment {
     variables = {
-      TABLE_NAME = var.table_name
+      TABLE_NAME             = var.table_name
+      USHAHIDI_SHARED_SECRET = var.ushahidi_shared_secret
     }
   }
 

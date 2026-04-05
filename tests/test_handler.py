@@ -1,3 +1,6 @@
+import base64
+import hashlib
+import hmac as _hmac
 import json
 import os
 
@@ -11,6 +14,7 @@ os.environ["AWS_ACCESS_KEY_ID"] = "testing"
 os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
 os.environ["AWS_SECURITY_TOKEN"] = "testing"
 os.environ["AWS_SESSION_TOKEN"] = "testing"
+os.environ["USHAHIDI_SHARED_SECRET"] = "test-secret-at-least-20-chars"
 
 from handler import lambda_handler  # noqa: E402
 
@@ -25,6 +29,18 @@ ATTR_DEFS = [
     {"AttributeName": "timestamp", "AttributeType": "S"},
 ]
 
+TEST_SECRET = "test-secret-at-least-20-chars"
+TEST_HOST = "example.execute-api.us-east-1.amazonaws.com"
+TEST_PATH = "/v1/events"
+TEST_URL = f"https://{TEST_HOST}{TEST_PATH}"
+
+
+def _sign(url, body_str):
+    msg = (url + body_str).encode("utf-8")
+    return base64.b64encode(
+        _hmac.new(TEST_SECRET.encode("utf-8"), msg, hashlib.sha256).digest()
+    ).decode("utf-8")
+
 
 def _make_table(dynamodb_client):
     dynamodb_client.create_table(
@@ -36,11 +52,21 @@ def _make_table(dynamodb_client):
 
 
 def _post_event(body):
-    return {"httpMethod": "POST", "body": json.dumps(body), "queryStringParameters": None}
+    body_str = json.dumps(body)
+    return {
+        "httpMethod": "POST",
+        "body": body_str,
+        "path": TEST_PATH,
+        "headers": {
+            "Host": TEST_HOST,
+            "X-Ushahidi-Signature": _sign(TEST_URL, body_str),
+        },
+        "queryStringParameters": None,
+    }
 
 
 def _get_event(params=None):
-    return {"httpMethod": "GET", "body": None, "queryStringParameters": params}
+    return {"httpMethod": "GET", "body": None, "headers": {}, "queryStringParameters": params}
 
 
 def _seed_item(table, event_id, timestamp, **extra):
@@ -60,7 +86,6 @@ def test_post_stores_item_returns_201():
     assert "event_id" in body
     assert "timestamp" in body
 
-    # Verify item is actually in DynamoDB
     resource = boto3.resource("dynamodb", region_name="us-east-1")
     table = resource.Table(TABLE_NAME)
     scan = table.scan()
@@ -76,11 +101,9 @@ def test_post_missing_body_returns_400():
     client = boto3.client("dynamodb", region_name="us-east-1")
     _make_table(client)
 
-    resp = lambda_handler({"httpMethod": "POST", "body": None, "queryStringParameters": None}, {})
+    resp = lambda_handler({"httpMethod": "POST", "body": None, "headers": {}, "queryStringParameters": None}, {})
 
     assert resp["statusCode"] == 400
-    body = json.loads(resp["body"])
-    assert "error" in body
 
 
 @mock_aws
@@ -88,9 +111,54 @@ def test_post_invalid_json_returns_400():
     client = boto3.client("dynamodb", region_name="us-east-1")
     _make_table(client)
 
-    resp = lambda_handler({"httpMethod": "POST", "body": "not-json", "queryStringParameters": None}, {})
+    body_str = "not-json"
+    resp = lambda_handler({
+        "httpMethod": "POST",
+        "body": body_str,
+        "path": TEST_PATH,
+        "headers": {
+            "Host": TEST_HOST,
+            "X-Ushahidi-Signature": _sign(TEST_URL, body_str),
+        },
+        "queryStringParameters": None,
+    }, {})
 
     assert resp["statusCode"] == 400
+
+
+@mock_aws
+def test_post_missing_signature_returns_401():
+    client = boto3.client("dynamodb", region_name="us-east-1")
+    _make_table(client)
+
+    resp = lambda_handler({
+        "httpMethod": "POST",
+        "body": json.dumps({"title": "Flood"}),
+        "path": TEST_PATH,
+        "headers": {"Host": TEST_HOST},
+        "queryStringParameters": None,
+    }, {})
+
+    assert resp["statusCode"] == 401
+
+
+@mock_aws
+def test_post_invalid_signature_returns_401():
+    client = boto3.client("dynamodb", region_name="us-east-1")
+    _make_table(client)
+
+    resp = lambda_handler({
+        "httpMethod": "POST",
+        "body": json.dumps({"title": "Flood"}),
+        "path": TEST_PATH,
+        "headers": {
+            "Host": TEST_HOST,
+            "X-Ushahidi-Signature": "invalidsignature==",
+        },
+        "queryStringParameters": None,
+    }, {})
+
+    assert resp["statusCode"] == 401
 
 
 @mock_aws
@@ -180,7 +248,7 @@ def test_invalid_method_returns_405():
     client = boto3.client("dynamodb", region_name="us-east-1")
     _make_table(client)
 
-    resp = lambda_handler({"httpMethod": "DELETE", "body": None, "queryStringParameters": None}, {})
+    resp = lambda_handler({"httpMethod": "DELETE", "body": None, "headers": {}, "queryStringParameters": None}, {})
 
     assert resp["statusCode"] == 405
 

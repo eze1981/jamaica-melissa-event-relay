@@ -1,3 +1,6 @@
+import base64
+import hashlib
+import hmac
 import json
 import os
 import uuid
@@ -8,6 +11,7 @@ from boto3.dynamodb.conditions import Attr
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["TABLE_NAME"])
+USHAHIDI_SHARED_SECRET = os.environ.get("USHAHIDI_SHARED_SECRET", "")
 
 
 def lambda_handler(event, context):
@@ -22,9 +26,19 @@ def lambda_handler(event, context):
 
 def handle_post(event):
     try:
-        body_str = event.get("body")
+        body_str = event.get("body") or ""
         if not body_str:
             return _response(400, {"error": "Request body is required"})
+
+        headers = event.get("headers") or {}
+        sig = headers.get("X-Ushahidi-Signature", "")
+        host = headers.get("Host", "")
+        path = event.get("path", "/v1/events")
+        url = f"https://{host}{path}"
+
+        if not sig or not _verify_signature(url, body_str, sig):
+            return _response(401, {"error": "Invalid signature"})
+
         try:
             payload = json.loads(body_str)
         except json.JSONDecodeError:
@@ -82,6 +96,14 @@ def handle_get(event):
         return _response(200, items)
     except Exception as e:
         return _response(500, {"error": str(e)})
+
+
+def _verify_signature(url: str, body_str: str, signature: str) -> bool:
+    message = (url + body_str).encode("utf-8")
+    expected = base64.b64encode(
+        hmac.new(USHAHIDI_SHARED_SECRET.encode("utf-8"), message, hashlib.sha256).digest()
+    ).decode("utf-8")
+    return hmac.compare_digest(expected, signature)
 
 
 def _response(status_code, body):

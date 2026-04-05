@@ -5,6 +5,7 @@ terraform/.terraform.lock.hcl
 terraform/terraform.tfstate
 terraform/terraform.tfstate.backup
 terraform/tfplan
+terraform/*.tfvars
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

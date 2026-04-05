@@ -15,3 +15,9 @@ variable "table_name" {
   type        = string
   default     = "melissa-events"
 }
+
+variable "ushahidi_shared_secret" {
+  description = "Shared secret for validating X-Ushahidi-Signature webhook headers"
+  type        = string
+  sensitive   = true
+}

@@ -22,7 +22,7 @@ All infrastructure is managed via Terraform. No manual AWS console setup require
 | Tool | Minimum version | Install |
 |------|----------------|---------|
 | AWS CLI | v2 | https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html |
-| Terraform | 1.5 | https://developer.hashicorp.com/terraform/install |
+| Terraform | 1.14.8 | https://developer.hashicorp.com/terraform/install |
 | Python | 3.12 | https://www.python.org/downloads/ |
 
 Configure AWS credentials before deploying:

@@ -13,13 +13,13 @@ resource "aws_api_gateway_resource" "events" {
   path_part   = "events"
 }
 
-# POST /events
+# POST /events — no API key required; Ushahidi authenticates via X-Ushahidi-Signature
 resource "aws_api_gateway_method" "post_events" {
   rest_api_id      = aws_api_gateway_rest_api.event_relay.id
   resource_id      = aws_api_gateway_resource.events.id
   http_method      = "POST"
   authorization    = "NONE"
-  api_key_required = true
+  api_key_required = false
 }
 
 resource "aws_api_gateway_integration" "post_events" {
